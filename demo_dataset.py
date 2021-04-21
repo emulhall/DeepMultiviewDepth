@@ -93,7 +93,7 @@ class DynamicDataset(Dataset):
         color2 = torch.stack([self.load_image(info) for info in color_info2])
 
         depth_info = color_info.replace('color', 'depth').replace('png', 'pgm')
-        depth_img = sio.imread(depth_info) / 1000.0
+        depth_img = sio.imread(depth_info) / 10.0
         if depth_img.shape[1] != self.image_size[0]:
             depth_img = cv2.resize(depth_img, self.image_size, interpolation=cv2.INTER_NEAREST)
         depth_tensor = torch.tensor(depth_img).float()
