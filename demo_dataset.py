@@ -45,7 +45,7 @@ class DemoFlowDataset(Dataset):
 
     @staticmethod
     def color2pose(color_info):
-        pose_info = color_info.replace('color/frame', 'pose/frame').replace('color.jpg', 'pose.txt')
+        pose_info = color_info.replace('color/frame', 'pose/frame').replace('.png', '.txt')
         return pose_info
 
     def load_image(self, file, output_normalized_image=False):
@@ -69,7 +69,7 @@ class DemoFlowDataset(Dataset):
         return self[index]
 
     def __getitem__(self, index):
-        color_info = os.path.join(self.root, 'color', 'frame-%06d.color.jpg' % self.idx[index])
+        color_info = os.path.join(self.root, 'color', 'frame_%06d.png' % self.idx[index])
         frame_index = self.idx[index]
 
         color_info2 = []
@@ -78,7 +78,7 @@ class DemoFlowDataset(Dataset):
         else:
             raise NotImplementedError
         for delta in window:
-            delta_info = color_info.replace(color_info[-16:-10], '%06d' % (frame_index + delta))
+            delta_info = color_info.replace(color_info[-10:-4], '%06d' % (frame_index + delta))
             # if the next/previous image does not exist, use the previous/next image.
             if not os.path.isfile(delta_info):
                 delta_info = delta_info.replace('%06d' % (frame_index + delta), '%06d' % (frame_index - delta))
@@ -92,7 +92,7 @@ class DemoFlowDataset(Dataset):
         color, colorn = self.load_image(color_info, output_normalized_image=True)
         color2 = torch.stack([self.load_image(info) for info in color_info2])
 
-        depth_info = color_info.replace('color', 'depth').replace('jpg', 'pgm')
+        depth_info = color_info.replace('color', 'depth').replace('png', 'pgm')
         depth_img = sio.imread(depth_info) / 1000.0
         if depth_img.shape[1] != self.image_size[0]:
             depth_img = cv2.resize(depth_img, self.image_size, interpolation=cv2.INTER_NEAREST)
@@ -102,14 +102,12 @@ class DemoFlowDataset(Dataset):
         poses = [np.loadtxt(info, dtype=np.float32) for info in poses_info]
         for pose in poses:
             if len(pose[~np.isfinite(pose)]) > 0:
-                print(color_info)
                 return self.handle_bad_item()
         poses_ref_in_other = [np.matmul(np.linalg.inv(pose), poses[0]) for pose in poses[1:]]
         rots_ref_in_other = np.stack([pose[0:3, 0:3] for pose in poses_ref_in_other])
         ts_ref_in_other = np.stack([pose[0:3, 3] for pose in poses_ref_in_other])
 
-        predicted_normal_file = color_info.replace('color/frame', 'normal_pred/frame').replace('.color.jpg',
-                                                                                               '-normal_pred.png')
+        predicted_normal_file = color_info.replace('color/frame', 'normal_pred/frame')
         normal_img = Image.open(predicted_normal_file)
         assert normal_img.width == 320
         assert normal_img.height == 240
