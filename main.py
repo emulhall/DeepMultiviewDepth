@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader
 from PIL import Image
 
 from demo_dataset import DemoFlowDataset
+from demo_dataset import DynamicDataset
 import network_run
 from networks.depth_refinement_network import DRN
 
@@ -277,9 +278,11 @@ if __name__ == '__main__':
     logging.info('sys.argv = {}'.format(sys.argv))
     logging.info('parsed arguments and their values: {}'.format(vars(args)))
 
-    train_dataset = DemoFlowDataset(usage='train', window=args.window, root='./dataset')
+    #TODO UPDATE THIS
+    train_dataset = DynamicDataset(usage='train', window=args.window, root='./dataset')
 
-    test_dataset = DemoFlowDataset(usage='test', window=args.window, root='./dataset')
+    #TODO UPDATE THIS
+    test_dataset = DynamicDataset(usage='test', window=args.window, root='./dataset')
 
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size,
                                   shuffle=True, num_workers=args.dataloader_train_workers,
