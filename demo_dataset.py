@@ -24,22 +24,18 @@ def generate_image_homogeneous_coordinates(fc, cc, image_width, image_height):
     return torch.from_numpy(homogeneous.astype(np.float32))
 
 class DynamicDataset(Dataset):
-    def __init__(self, usage, root, window: list, resize=2):
+    def __init__(self, usage, root, window: list, skip_every_n_image=1, resize=2):
         super().__init__()
 
         self.root = root
-        #TODO what is this?
+        #TODO fix the indices to be actual range of image indices
         self.idx = range(10,300,10)
         self.data_len = len(self.idx)
         logging.info('Number of frames for the usage {0} is {1}.'.format(usage, self.data_len))
 
-        #TODO what is fc?
-        self.fc = np.array([577.87061, 580.25851]) / resize
-        #TODO what is cc?
-        self.cc = np.array([319.87654, 239.87603]) / resize
-        #TODO what is our image size? What should this be changed to?
+        self.fc = np.array([492.93441, 492.96996]) / resize
+        self.cc = np.array([499.57868, 504.33189]) / resize
         self.image_size = (640 // resize, 480 // resize)
-        #TODO look into this function and what this does
         self.homogeneous_coords = generate_image_homogeneous_coordinates(
             self.fc, self.cc, *self.image_size).permute(2, 0, 1)
 
