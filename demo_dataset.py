@@ -116,11 +116,17 @@ class DynamicDataset(Dataset):
             normal_values = cv2.resize(normal_values, self.image_size, interpolation=cv2.INTER_NEAREST)
         normal_tensor = self.to_tensor(normal_values)
 
+        mask_info = color_info.replace('color', 'mask').replace('png', 'png.png')
+        mask_img = 1 - sio.imread(mask_info) / 255
+        mask_values = cv2.resize(mask_img, self.image_size, interpolation=cv2.INTER_NEAREST)
+        mask_tensor = torch.tensor(mask_values.astype(int), dtype = bool)
+
         output = {'imagen': colorn, 'image': color, 'image2': color2,
                   'homo': self.homogeneous_coords, 'depth': depth_tensor,
                   'rots_ref_in_other': rots_ref_in_other, 'ts_ref_in_other': ts_ref_in_other,
                   'predicted_normal': normal_tensor,
-                  'scene_path': '/'.join(color_info.split('/')[0:-2]), 'frame_index': frame_index}
+                  'scene_path': '/'.join(color_info.split('/')[0:-2]), 'frame_index': frame_index,
+                  'mask': mask_tensor}
 
         return output
 

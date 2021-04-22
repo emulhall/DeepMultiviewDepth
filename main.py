@@ -160,10 +160,15 @@ class RunMultiViewDepthEstimation(RunDepthRAFT, RunIterativeDepthCompletion):
 
     def _call_cnn(self, input_batch):
         bearings_ref_in_other, image1, image2, ts = self.load_inputs(input_batch)
+        mask = input_batch['mask'].cuda(non_blocking = True)
 
         flows = [self.get_flow(image1, image2[:, k, ...]) for k in range(image2.shape[1])]
         flow_depth, flow_depth_confidence_scores = self.triangulation(bearings_ref_in_other, ts, flows, residual=True)
         flow_depth_confidence_scores = torch.cat(flow_depth_confidence_scores, dim=1)
+        
+        # residual, hessian
+        flow_depth_confidence_scores[0, 0, mask[0]] = 0.99
+        flow_depth_confidence_scores[0, 1, mask[0]] = 0.01
 
         rgb_image = input_batch['imagen'].cuda(non_blocking=True)
         with torch.no_grad():
