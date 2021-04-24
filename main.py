@@ -10,8 +10,9 @@ from PIL import Image
 
 from demo_dataset import DemoFlowDataset
 from demo_dataset import DynamicDataset
+from demo_dataset import TUMDataset
 import network_run
-from networks.depth_refinement_network import DRN
+from networks.depth_refinement_network import DRNModified
 
 from networks.surface_normal import *
 from networks.surface_normal_dorn import *
@@ -40,7 +41,7 @@ def ParseCmdLineArguments():
                         help='The epoch to resume training from.')
     parser.add_argument('--iter', type=int, default=0,
                         help='The iteration to resume training from.')
-    parser.add_argument('--dataset_pickle_file', type=str, default='./data/scannet_depth_completion_split.pkl')
+    parser.add_argument('--dataset_pickle_file', type=str, default='./pickles/TUM.pkl')
     parser.add_argument('--dataloader_test_workers', type=int, default=16)
     parser.add_argument('--dataloader_train_workers', type=int, default=16)
     parser.add_argument('--learning_rate', type=float, default=1.e-4)
@@ -105,7 +106,7 @@ class RunMultiViewDepthEstimation(RunDepthRAFT, RunIterativeDepthCompletion):
             self.surface_normal_cnn = self.surface_normal_cnn = SurfaceNormalDORN().cuda()
         else:
             self.surface_normal_cnn = None
-        self.depth_refinement_network = DRN(arguments).cuda()
+        self.depth_refinement_network = DRNModified(arguments).cuda()
 
         # Visualization
         self.output_path = arguments.save_visualization
@@ -159,16 +160,17 @@ class RunMultiViewDepthEstimation(RunDepthRAFT, RunIterativeDepthCompletion):
         image.save(os.path.join(output_path, 'viz_{0:06d}.png'.format(input_batch['frame_index'][0])))
 
     def _call_cnn(self, input_batch):
-        bearings_ref_in_other, image1, image2, ts = self.load_inputs(input_batch)
-        mask = input_batch['mask'].cuda(non_blocking = True)
+        #image = input_batch['image'].cuda(non_blocking=True)
+        #bearings_ref_in_other, image1, image2, ts = self.load_inputs(input_batch)
+        #mask = input_batch['mask'].cuda(non_blocking = True)
 
-        flows = [self.get_flow(image1, image2[:, k, ...]) for k in range(image2.shape[1])]
+        '''flows = [self.get_flow(image1, image2[:, k, ...]) for k in range(image2.shape[1])]
         flow_depth, flow_depth_confidence_scores = self.triangulation(bearings_ref_in_other, ts, flows, residual=True)
         flow_depth_confidence_scores = torch.cat(flow_depth_confidence_scores, dim=1)
         
         # residual, hessian
         flow_depth_confidence_scores[0, 0, mask[0]] = 0.99
-        flow_depth_confidence_scores[0, 1, mask[0]] = 0.01
+        flow_depth_confidence_scores[0, 1, mask[0]] = 0.01'''
 
         rgb_image = input_batch['imagen'].cuda(non_blocking=True)
         with torch.no_grad():
@@ -178,8 +180,10 @@ class RunMultiViewDepthEstimation(RunDepthRAFT, RunIterativeDepthCompletion):
                 predicted_normals = input_batch['predicted_normal'].cuda(non_blocking=True)
             predicted_normals = torch.nn.functional.normalize(predicted_normals)
 
+        predicted_depth = input_batch['predicted_depth'].cuda(non_blocking=True)
+
         depth_complete = self.depth_refinement_network(rgb_image, predicted_normals,
-                                                       flow_depth, flow_depth_confidence_scores)
+                                                       predicted_depth, flow_depth_confidence_scores)
         if self.output_path != '':
             self.visualization(depth_complete, flow_depth, input_batch)
         return depth_complete
@@ -284,10 +288,11 @@ if __name__ == '__main__':
     logging.info('parsed arguments and their values: {}'.format(vars(args)))
 
     #TODO UPDATE THIS
-    train_dataset = DynamicDataset(usage='train', window=args.window, root='./dataset')
+    train_dataset = TUMDataset(usage='train', window=args.window, root='./dataset',dataset_pickle_file=args.dataset_pickle_file)
+    print(args.dataset_pickle_file)
 
     #TODO UPDATE THIS
-    test_dataset = DynamicDataset(usage='test', window=args.window, root='./dataset')
+    test_dataset = TUMDataset(usage='train', window=args.window, root='./dataset',dataset_pickle_file=args.dataset_pickle_file)
 
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size,
                                   shuffle=True, num_workers=args.dataloader_train_workers,
