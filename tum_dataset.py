@@ -19,6 +19,7 @@ class TUMDataset(Dataset):
 
         with open(dataset_pickle_file, 'rb') as file:
             self.data_info = pickle.load(file)[usage]
+
         logging.info('Number of frames for the usage {0} is {1}.'
                .format(usage, len(self.data_info[0])))
 
@@ -86,4 +87,4 @@ class TUMDataset(Dataset):
 
 
     def __len__(self):
-        return len(self.idx)
+        return len(self.data_info[0])
