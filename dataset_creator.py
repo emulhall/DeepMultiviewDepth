@@ -10,7 +10,7 @@ from natsort import natsorted
 
 def ParseCmdLineArguments():
     parser = argparse.ArgumentParser(description='TUM pickle creator')
-    parser.add_argument('--data_path', type=str, default='~/TUM/',
+    parser.add_argument('--data_path', type=str, default='../TUM/',
                         help='The path to the TUM data.')
     parser.add_argument('--output_path', type=str, default='pickles',
                         help='The path to save the TUM.pkl file.')
@@ -18,14 +18,12 @@ def ParseCmdLineArguments():
 
 
 def create_split(ROOT_DIR):
-    folder = os.path.join(ROOT_DIR)
 
     final_split = [[], [], [], []]
     num_frames = 0
     test=0
-    #TODO Update this to however we get the color images
-    #categories = fnmatch.filter(os.listdir(folder), '*/*')
-    categories = glob.glob(os.path.join(folder, '*/*'))
+
+    categories = glob.glob(os.path.join(ROOT_DIR, '*/*'))
     for c in range(len(categories)):
     	f1 = os.path.join(categories[c], 'rgb.txt')
     	f2 = os.path.join(categories[c], 'depth.txt')
@@ -46,12 +44,12 @@ def create_split(ROOT_DIR):
 
     		for f in range(len(colmap_filelist)):
     			#Get the ground truth depth time index
-    			gt = [match[1] for match in matches if str(match[0])==frame[:-4]]
+    			gt = [match[1] for match in matches if match[0]==float(frame[:-4])]
     			if(len(gt)==0):
     				test+=1
     				continue
     			else:
-    				gt_path = os.path.join(categories[c],'depth',str(gt[0])+'.png')
+    				gt_path = os.path.join(categories[c],'depth',"{:.6f}".format(gt[0])+'.png')
     				final_split[1].append(gt_path)
     			#Append color path
     			final_split[0].append(color_path)

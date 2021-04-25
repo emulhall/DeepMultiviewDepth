@@ -50,7 +50,7 @@ class TUMDataset(Dataset):
         depth_gt_img = Image.open(depth_gt_file).convert('F')  # Convert to float32
         depth_gt_values = np.array(depth_gt_img.resize((320, 240), resample=Image.NEAREST))
         depth_gt_tensor = torch.Tensor(depth_gt_values) / 5000.0
-        depth_gt_tensor = depth_gt_tensor.view(1, depth_tensor.shape[0], depth_tensor.shape[1])
+        depth_gt_tensor = depth_gt_tensor.view(1, depth_gt_tensor.shape[0], depth_gt_tensor.shape[1])
 
         # normal prediction
         predicted_normal_file = self.data_info[3][index]
@@ -61,7 +61,7 @@ class TUMDataset(Dataset):
         normal_tensor = self.to_tensor(normal_values)
 
         # depth prediction
-        predicted_depth_file = self.data_info[2][self.idx[index]]
+        predicted_depth_file = self.data_info[2][index]
         pred_depth_values = read_array(predicted_depth_file) / 10.0
         if pred_depth_values.shape != self.image_size:
             pred_depth_values = cv2.resize(pred_depth_values, self.image_size,
@@ -80,8 +80,8 @@ class TUMDataset(Dataset):
         output = {'imagen': colorn, 'image': color,
                   'depth_gt': depth_gt_tensor,
                   'predicted_normal': normal_tensor,
-                  'predicted_depth': predicted_depth_tensor,
-                  'uncertainty': error}
+                  'predicted_depth': pred_depth_tensor[None, :, :],
+                  'uncertainty': error[None, :, :]}
 
         return output
 
