@@ -10,7 +10,7 @@ from natsort import natsorted
 
 def ParseCmdLineArguments():
     parser = argparse.ArgumentParser(description='TUM pickle creator')
-    parser.add_argument('--data_path', type=str, default='../TUM/',
+    parser.add_argument('--data_path', type=str, default='~/TUM/',
                         help='The path to the TUM data.')
     parser.add_argument('--output_path', type=str, default='pickles',
                         help='The path to save the TUM.pkl file.')
