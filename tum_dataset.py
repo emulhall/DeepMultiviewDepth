@@ -11,7 +11,7 @@ from torchvision import transforms
 import cv2
 
 from read_write_dense import read_array
-from colmap_error import colmapError
+from colmap_error import colmapError, edgeDetectionError
 
 class TUMDataset(Dataset):
     def __init__(self, usage, dataset_pickle_file, resize = 2):
@@ -74,8 +74,11 @@ class TUMDataset(Dataset):
         pred_depth_tensor = torch.Tensor(np.array(pred_depth_values))
 
         # uncertainty prediction
-        error = colmapError(pred_depth_values, 2, outlier_mask)
-        error = torch.Tensor(error)        
+        img = np.array(Image.fromarray(color.permute(1,2,0).numpy(), "RGB").convert("L"))
+        error = edgeDetectionError(pred_depth_values, 2, outlier_mask, img)
+        #error = colmapError(pred_depth_values, 2, outlier_mask)
+        error = torch.Tensor(error)
+        #error = torch.Tensor(outlier_mask)    
     
         output = {'imagen': colorn, 'image': color,
                   'depth_gt': depth_gt_tensor,

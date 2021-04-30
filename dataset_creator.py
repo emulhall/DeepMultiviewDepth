@@ -21,7 +21,6 @@ def create_split(ROOT_DIR):
 
     final_split = [[], [], [], []]
     num_frames = 0
-    test=0
 
     categories = glob.glob(os.path.join(ROOT_DIR, '*/*'))
     for c in range(len(categories)):
@@ -32,8 +31,7 @@ def create_split(ROOT_DIR):
     	matches = associate(first_list,second_list,0.0,0.04)
     	color_filelist = natsorted(glob.glob(os.path.join(categories[c], 'p*/images/*')))
 
-    	#for img_idx in range(len(color_filelist)):
-    	for img_idx in range(min(len(color_filelist),900)):
+    	for img_idx in range(len(color_filelist)):
     		#Get color path
     		color_path = color_filelist[img_idx]
 
@@ -46,7 +44,6 @@ def create_split(ROOT_DIR):
     			#Get the ground truth depth time index
     			gt = [match[1] for match in matches if match[0]==float(frame[:-4])]
     			if(len(gt)==0):
-    				test+=1
     				continue
     			else:
     				gt_path = os.path.join(categories[c],'depth',"{:.6f}".format(gt[0])+'.png')
@@ -66,7 +63,6 @@ def create_split(ROOT_DIR):
 
 
     print('Number of frames: %d' % num_frames)
-    print('Number missing gt: %d' % test)
 
     return final_split
 

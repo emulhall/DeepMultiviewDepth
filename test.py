@@ -2,16 +2,19 @@ import numpy as np
 import torch
 import torchvision
 import argparse
+import os
+import math
 
-from tum_dataset import TUMDataset
+from demo_dataset import DynamicDataset
 from networks.depth_refinement_network import DRNModified
 import matplotlib.pyplot as plt
-import os
+from PIL import Image
 
 
 def ParseCmdLineArguments():
     parser = argparse.ArgumentParser(description='Modified MARS CNN Script')
     parser.add_argument('--checkpoint', action='append',
+                        default="checkpoints/Models/trained_model-0000030.cpkt",
                         help='Location of the checkpoints to evaluate.')
     parser.add_argument('--train', type=int, default=1,
                         help='If set to nonzero train the network, otherwise will evaluate.')
@@ -19,16 +22,16 @@ def ParseCmdLineArguments():
                         help='The path to save the network checkpoints and logs.')
     parser.add_argument('--save_visualization', type=str, default='',
                         help='Saving network output images.')
-    parser.add_argument('--batch_size', type=int, default=8)
+    parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--root', type=str, default='/mars/mnt/dgx/FrameNet')
     parser.add_argument('--epoch', type=int, default=0,
                         help='The epoch to resume training from.')
     parser.add_argument('--iter', type=int, default=0,
                         help='The iteration to resume training from.')
-    parser.add_argument('--dataset_pickle_file', type=str, default='./pickles/TUM.pkl')
+    parser.add_argument('--dataset_pickle_file', type=str, default='./pickles/test.pkl')
     parser.add_argument('--dataloader_test_workers', type=int, default=16)
     parser.add_argument('--dataloader_train_workers', type=int, default=16)
-    parser.add_argument('--learning_rate', type=float, default=1.e-5)
+    parser.add_argument('--learning_rate', type=float, default=1.e-4)
     parser.add_argument('--save_every_n_iteration', type=int, default=1000,
                         help='Save a checkpoint every n iterations (iterations reset on new epoch).')
     parser.add_argument('--save_every_n_epoch', type=int, default=1,
@@ -67,6 +70,8 @@ def ParseCmdLineArguments():
 def scaleInvariantUncertaintyLoss(gt, pred, uncertainty):
     # shifting and scaling to be within [0,1]
     mask = gt > 0
+    if torch.sum(mask).item() == 0:
+        return torch.sum(mask)
     gt_shifted = gt - torch.min(gt[mask])
     gt_scaled = gt_shifted / torch.max(gt_shifted[mask])
     pred_shifted = pred - torch.min(pred)
@@ -79,7 +84,7 @@ def scaleInvariantUncertaintyLoss(gt, pred, uncertainty):
     loss = diff * torch.exp(-uncertainty_scaled[mask]) + uncertainty_scaled[mask]
 
     return torch.sum(loss) / gt.shape[0]
-    
+
 def scaleInvariantLoss(gt, pred):
     # shifting and scaling to be within [0,1]
     b = gt.shape[0]
@@ -113,53 +118,50 @@ if __name__ == "__main__":
 
     args = ParseCmdLineArguments()
 
-    trainset = TUMDataset("train", args.dataset_pickle_file)
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size = args.batch_size,
+    testset = DynamicDataset("train", args.dataset_pickle_file)
+    testloader = torch.utils.data.DataLoader(testset, batch_size = args.batch_size,
 			 	   shuffle = True, num_workers = 1)
 
-    net = DRNModified(args).cuda()
-    optimizer = torch.optim.Adam(net.parameters(), lr = 1e-5)
+    net = DRNModified(args)#.cuda()
+    net.load_state_dict(torch.load(args.checkpoint))
+    net.eval()
 
-    print(len(trainset))
-    quit()
+    running_loss = 0
+    skipped = 0
+    for i, data in enumerate(testloader, 0):
+        # load data
+        rgb = data['image']#.cuda(non_blocking=True)
+        depth_gt = data['depth_gt']#.cuda(non_blocking=True)
+        depth_init = data['predicted_depth']#.cuda(non_blocking=True)
+        normal_pred = data['predicted_normal']#.cuda(non_blocking=True)
+        uncertainty = data['uncertainty']#.cuda(non_blocking=True)
+        output_path = data['output_path']
 
-    loss_list=[]
-    for epoch in range(5000000):
-        running_loss = 0
-        for i, data in enumerate(trainloader, 0):
-            # load data
-            rgb = data['image'].cuda(non_blocking=True)
-            depth_gt = data['depth_gt'].cuda(non_blocking=True)
-            depth_init = data['predicted_depth'].cuda(non_blocking=True)
-            normal_pred = data['predicted_normal'].cuda(non_blocking=True)
-            uncertainty = data['uncertainty'].cuda(non_blocking=True)
-
-            # forward
-            pred = net(rgb, normal_pred, depth_init, uncertainty)
-            depth_pred = pred["d"][-1]
-
-            # backward
-            loss = scaleInvariantLoss(depth_gt, depth_pred)         
+        # forward
+        pred = net(rgb, normal_pred, depth_init, uncertainty)
+        depth_pred = pred["d"][-1]
+        uncertainty_pred = pred["u"][-1]
+        loss = missingPixelLoss(depth_gt, depth_pred, depth_init)
+        if math.isnan(loss.item()) or loss.item() == 0:
+            skipped += 1
+        else:
             running_loss += loss.item()
-            loss.backward()
-            optimizer.step()
 
+        # save output
+        for j in range(len(output_path)):    
+            depth_scaled = depth_pred[j,0] - torch.min(depth_pred[j,0])
+            #depth_array = (255 * depth_scaled / torch.max(depth_scaled)).cpu().detach().numpy()
+            depth_array = (255 * depth_scaled / torch.max(depth_scaled)).detach().numpy()
+            img = Image.fromarray(depth_array.astype(np.uint8), 'L')
 
-        loss_list.append(running_loss / len(trainset))
-        print(epoch, "\t{:.2f}".format(running_loss / len(trainset)))
-        running_loss = 0
+            if not os.path.exists(os.path.dirname(output_path[j])):
+                os.makedirs(os.path.dirname(output_path[j])) 
+            img.save(output_path[0])
 
-        #Save the network every 10 epochs and plot the loss over iterations
-        if(epoch%10==9):
-            path = os.path.join(args.save,'checkpoints/Models/trained_model-%07d.cpkt' % (epoch+1))
-            torch.save(net.state_dict(), path)
+            if loss.item() == 0:
+                print("***", output_path[j])
+            else:
+                print(output_path[j])
 
-            plot_path = os.path.join(args.save, 'train/training_error-%07d.png' % (epoch+1))
-            plt.plot(range(len(loss_list)), loss_list)
-            plt.xlabel("Epochs")
-            plt.ylabel("Loss")
-            plt.title("Training Loss over Epochs")
-            plt.savefig(plot_path)
-            plt.clf()
-
+    print("Average loss: {:.2f}".format(running_loss / (len(testset) - skipped)))
 
